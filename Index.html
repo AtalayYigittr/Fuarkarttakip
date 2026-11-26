@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --paper:#EEF1F3; --surface:#FFFFFF; --ink:#18212B; --muted:#5B6875; --line:#D3DAE0;
+  --accent:#E9B500; --accent-ink:#1A1500; --danger:#B3261E; --focus:#2F6FDE;
+  --r-card:5px; --r-ui:10px;
+  --font:"Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --paper:#11161C; --surface:#1A212A; --ink:#E6EBF0; --muted:#94A2B0; --line:#2B3540;
+    --accent:#F0C230; --accent-ink:#1A1500; --danger:#F08A80; --focus:#7BA7FF; color-scheme:dark; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.45}
+body{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+[hidden]{display:none!important}
+
+/* Üst bar */
+.top{position:sticky;top:0;z-index:5;background:var(--paper);padding:calc(14px + env(safe-area-inset-top,0px)) 16px 12px;border-bottom:1px solid var(--line)}
+.top-row{display:flex;align-items:baseline;gap:10px;max-width:1100px;margin:0 auto 10px}
+.top h1{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;margin:0}
+.count{color:var(--muted);font-size:.95rem}
+.top-row .icon-btn{margin-left:auto}
+.search{display:block;width:100%;max-width:1100px;margin:0 auto;padding:11px 14px;border:1px solid var(--line);border-radius:var(--r-ui);background:var(--surface)}
+
+/* Liste: kartlar gerçek kartvizit oranında */
+.grid{max-width:1100px;margin:18px auto 0;padding:0 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:22px 16px}
+.item{all:unset;cursor:pointer;display:block;border-radius:var(--r-card)}
+.item .card{aspect-ratio:85/55;border-radius:var(--r-card);overflow:hidden;background:var(--surface);border:1px solid var(--line);box-shadow:0 1px 0 var(--line),0 6px 14px -10px rgba(10,20,30,.45);position:relative}
+.item .card img{width:100%;height:100%;object-fit:cover;display:block}
+.item .card .ph{position:absolute;inset:0;display:grid;place-items:center;font-size:1.4rem;font-weight:700;color:var(--muted)}
+.item .badge{position:absolute;right:6px;bottom:6px;background:var(--accent);color:var(--accent-ink);font-size:.75rem;font-weight:600;padding:1px 7px;border-radius:20px}
+.item .t1{margin-top:8px;font-weight:600;font-size:.95rem;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .t2{color:var(--muted);font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item:hover .card{border-color:var(--muted)}
+.filters{display:flex;gap:8px;max-width:1100px;margin:10px auto 0;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-ui);overflow:hidden;background:var(--surface)}
+.seg button{all:unset;cursor:pointer;padding:8px 14px;font-weight:500;font-size:.95rem}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.city{flex:1;min-width:150px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-ui);background:var(--surface);color:var(--ink);font:inherit}
+.text-btn{all:unset;cursor:pointer;margin-left:auto;padding:6px 12px;border:1px solid var(--line);border-radius:20px;font-size:.9rem;font-weight:500;background:var(--surface)}
+.text-btn.warn{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+#mapWrap{max-width:1100px;margin:16px auto 0;padding:0 16px}
+#map{height:calc(100vh - 230px);min-height:340px;border-radius:var(--r-ui);border:1px solid var(--line);z-index:0}
+.leaflet-tooltip.firm{background:var(--surface);color:var(--ink);border:1px solid var(--line);font:600 12px/1.2 var(--font);padding:3px 7px;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.leaflet-tooltip.firm::before{display:none}
+.map-note{color:var(--muted);font-size:.88rem;margin:8px 0 0}
+.empty{max-width:420px;margin:60px auto;padding:0 24px;text-align:center;color:var(--muted)}
+.empty strong{display:block;color:var(--ink);font-size:1.15rem;margin-bottom:6px}
+
+/* Butonlar */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;border-radius:var(--r-ui);border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:500;min-height:44px;text-decoration:none;color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.danger{color:var(--danger)}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn:disabled{opacity:.5;cursor:default}
+.btn input[type=file]{display:none}
+.icon-btn{all:unset;cursor:pointer;width:40px;height:40px;display:grid;place-items:center;border-radius:50%;color:var(--muted)}
+.icon-btn:hover{background:var(--surface)}
+.fab{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:6;padding:14px 22px;border-radius:30px;border:none;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:1rem;cursor:pointer;box-shadow:0 8px 22px -8px rgba(0,0,0,.45)}
+
+/* Paneller */
+.panel{position:fixed;inset:0;z-index:20;background:var(--paper);overflow-y:auto;opacity:0;transform:translateY(14px);transition:opacity .18s ease,transform .18s ease}
+.panel.open{opacity:1;transform:none}
+.p-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 10px 10px;background:var(--paper);border-bottom:1px solid var(--line)}
+.p-head h2{font-size:1.15rem;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-body{max-width:720px;margin:0 auto;padding:18px 16px calc(40px + env(safe-area-inset-bottom,0px))}
+.section{margin-top:28px}
+.section > h3{font-size:1rem;margin:0 0 10px}
+.hint{color:var(--muted);font-size:.9rem;margin:6px 0 0}
+
+/* Fotoğraf alanları */
+.shots{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:520px){.shots{grid-template-columns:1fr}}
+.shot .frame{cursor:pointer;aspect-ratio:85/55;border:1.5px dashed var(--line);border-radius:var(--r-card);background:var(--surface);display:grid;place-items:center;overflow:hidden;color:var(--muted);font-size:.9rem;text-align:center;padding:8px}
+.shot .frame.has{border-style:solid;padding:0}
+.shot .frame img{width:100%;height:100%;object-fit:cover;display:block}
+.shot .frame input{display:none}
+.shot .frame .cam{display:grid;gap:6px;justify-items:center}
+.shot .retake{color:var(--muted);font-size:.85rem;margin-top:6px}
+.shot .lbl{font-weight:600;font-size:.95rem;margin-bottom:6px}
+.shot .lbl span{color:var(--muted);font-weight:400}
+.shot .row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.shot .row .btn{flex:1;padding:8px 10px;font-size:.9rem}
+
+/* Form */
+.form{display:grid;gap:12px}
+.form label{display:grid;gap:4px;font-size:.88rem;color:var(--muted);font-weight:500}
+.form input,.form textarea,.ta{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-ui);background:var(--surface);color:var(--ink);font-size:1rem}
+.form textarea,.ta{min-height:84px;resize:vertical}
+.form .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.form .two{grid-template-columns:1fr}}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.actions .btn{flex:1}
+.reading .form input,.reading .form textarea{background:repeating-linear-gradient(90deg,var(--surface),var(--line),var(--surface));background-size:200% 100%;animation:sh 1.2s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+
+/* Detay */
+.d-cards{display:grid;grid-template-columns:1fr;gap:12px}
+.d-cards.two{grid-template-columns:1fr 1fr}
+@media (max-width:520px){.d-cards.two{grid-template-columns:1fr}}
+.d-cards button{all:unset;cursor:zoom-in;aspect-ratio:85/55;border-radius:var(--r-card);overflow:hidden;background:var(--surface);border:1px solid var(--line);display:block}
+.d-cards img{width:100%;height:100%;object-fit:cover;display:block}
+.info{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:10px 16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-ui);padding:14px 16px}
+.info dt{color:var(--muted);font-size:.88rem;padding-top:1px}
+.info dd{margin:0;word-break:break-word}
+.info a{color:var(--ink);text-decoration-color:var(--accent);text-decoration-thickness:2px;text-underline-offset:3px}
+.copy{all:unset;cursor:pointer;margin-left:8px;font-size:.82rem;color:var(--muted);text-decoration:underline}
+@media (max-width:420px){.info{grid-template-columns:1fr;gap:2px}.info dd{margin-bottom:10px}}
+
+/* Notlar */
+.composer{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-ui);padding:12px}
+.composer .ta{border:none;padding:4px;min-height:64px;background:transparent}
+.composer .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.composer .tools .btn{padding:8px 12px;font-size:.9rem;min-height:40px}
+.composer .tools .primary{margin-left:auto}
+.previews{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.add-img{all:unset;cursor:pointer;width:72px;height:72px;border-radius:8px;border:1.5px dashed var(--muted);display:grid;place-items:center;text-align:center;font-size:.78rem;line-height:1.2;color:var(--muted);font-weight:600}
+.add-img input{display:none}
+.pv{position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.pv img{width:100%;height:100%;object-fit:cover}
+.pv button{all:unset;cursor:pointer;position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;display:grid;place-items:center;font-size:14px}
+.notes{list-style:none;margin:18px 0 0;padding:0;display:grid;gap:0}
+.note{padding:14px 0;border-top:1px solid var(--line)}
+.note .meta{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:.85rem}
+.note .meta button{margin-left:auto}
+.note p{margin:6px 0 0;white-space:pre-wrap;word-break:break-word}
+.note .imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:10px}
+.note .imgs button{all:unset;cursor:zoom-in;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--line);display:block}
+.note .imgs img{width:100%;height:100%;object-fit:cover;display:block}
+.linkbtn{all:unset;cursor:pointer;color:var(--muted);font-size:.85rem;text-decoration:underline}
+
+/* Lightbox & toast */
+.lightbox{position:fixed;inset:0;z-index:40;background:rgba(5,8,12,.92);display:grid;place-items:center;padding:16px;cursor:zoom-out}
+.lightbox img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px}
+.lightbox .wait{color:#fff}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;max-width:min(92vw,520px);background:var(--ink);color:var(--paper);padding:11px 16px;border-radius:var(--r-ui);font-size:.95rem;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+.toast.err{background:var(--danger);color:#fff}
+.loading{color:var(--muted);text-align:center;padding:40px 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-row">
+    <h1>Kartvizitler</h1>
+    <span id="count" class="count"></span>
+    <button id="btnAdmin" class="text-btn">Ayarlar</button>
+  </div>
+  <input id="search" class="search" type="search" placeholder="Firma, kişi, e-posta, telefon veya WeChat ara" autocomplete="off">
+  <div class="filters">
+    <div class="seg" role="group" aria-label="Görünüm">
+      <button id="vList" aria-pressed="true">Liste</button>
+      <button id="vMap" aria-pressed="false">Harita</button>
+    </div>
+    <select id="city" class="city" aria-label="Şehre göre filtrele"><option value="">Tüm şehirler</option></select>
+  </div>
+</header>
+
+<main>
+  <div id="list" class="grid"></div>
+  <div id="loadingList" class="loading">Kartvizitler yükleniyor…</div>
+  <div id="empty" class="empty" hidden>
+    <strong>Henüz kartvizit yok</strong>
+    Sağ alttaki düğmeyle ilk kartvizitin fotoğrafını çekin; firma, kişi ve iletişim bilgileri otomatik doldurulur.
+  </div>
+  <div id="noMatch" class="empty" hidden>Aramanızla eşleşen kartvizit yok.</div>
+  <div id="mapWrap" hidden>
+    <div id="map"></div>
+    <p id="mapNote" class="map-note"></p>
+  </div>
+</main>
+
+<button id="fab" class="fab">+ Kartvizit ekle</button>
+
+<!-- Yeni kartvizit -->
+<section id="pNew" class="panel" hidden aria-label="Yeni kartvizit">
+  <div class="p-head">
+    <button class="btn ghost" data-close="pNew">Kapat</button>
+    <h2>Yeni kartvizit</h2>
+  </div>
+  <div class="p-body">
+    <div class="shots">
+      <div class="shot" data-side="on">
+        <div class="lbl">Ön yüz</div>
+        <label class="frame"><span class="cam"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Fotoğraf çekmek için dokunun</span><input type="file" accept="image/*" capture="environment"></label>
+        <div class="retake" hidden>Yeniden çekmek için resme dokunun</div>
+      </div>
+      <div class="shot" data-side="arka">
+        <div class="lbl">Arka yüz <span>(isteğe bağlı)</span></div>
+        <label class="frame"><span class="cam"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Arka yüzü çekmek için dokunun</span><input type="file" accept="image/*" capture="environment"></label>
+        <div class="retake" hidden>Yeniden çekmek için resme dokunun</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="btnRead" class="btn primary" disabled>Bilgileri oku</button>
+    </div>
+    <p id="readHint" class="hint"></p>
+
+    <div class="section" id="newFormWrap">
+      <h3>Kart bilgileri</h3>
+      <div class="form" id="newForm"></div>
+      <div class="actions">
+        <button id="btnSaveNew" class="btn primary">Kartviziti kaydet</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Detay -->
+<section id="pDetail" class="panel" hidden aria-label="Kartvizit detayı">
+  <div class="p-head">
+    <button class="btn ghost" data-close="pDetail">Geri</button>
+    <h2 id="dTitle"></h2>
+    <button id="btnEdit" class="btn ghost">Düzenle</button>
+  </div>
+  <div class="p-body">
+    <div id="dCards" class="d-cards"></div>
+
+    <div class="section">
+      <div id="dInfo"></div>
+      <div id="dEdit" hidden>
+        <div class="form" id="editForm"></div>
+        <div class="actions">
+          <button id="btnCancelEdit" class="btn">Vazgeç</button>
+          <button id="btnSaveEdit" class="btn primary">Değişiklikleri kaydet</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Kart notu</h3>
+      <textarea id="dNot" class="ta" placeholder="Bu kişi veya firma hakkında genel not"></textarea>
+      <div class="actions"><button id="btnSaveNot" class="btn" disabled>Notu kaydet</button></div>
+    </div>
+
+    <div class="section">
+      <h3>Resimli notlar</h3>
+      <div class="composer">
+        <textarea id="ncText" class="ta" placeholder="Görüşme, numune, fiyat… ne not almak istersiniz?"></textarea>
+        <div class="previews">
+          <label class="add-img">+ Resim<br>ekle<input id="ncCam" type="file" accept="image/*" capture="environment"></label>
+          <span id="ncPreviews" style="display:contents"></span>
+        </div>
+        <div class="tools">
+          <label class="linkbtn">Galeriden seç<input id="ncGal" type="file" accept="image/*" multiple hidden></label>
+          <button id="btnAddNote" class="btn primary">Notu ekle</button>
+        </div>
+      </div>
+      <ul id="dNotes" class="notes"></ul>
+    </div>
+
+    <div class="section">
+      <button id="btnDelete" class="btn danger">Kartviziti sil</button>
+    </div>
+  </div>
+</section>
+
+<!-- Yönetim -->
+<section id="pAdmin" class="panel" hidden aria-label="Yönetim paneli">
+  <div class="p-head">
+    <button class="btn ghost" data-close="pAdmin">Kapat</button>
+    <h2>Yönetim paneli</h2>
+  </div>
+  <div class="p-body">
+    <div id="adminBody" class="loading">Ayarlar yükleniyor…</div>
+  </div>
+</section>
+
+<div id="lightbox" class="lightbox" hidden><img alt=""><span class="wait">Yükleniyor…</span></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const api = (fn, ...args) => new Promise((ok, no) => {
+  google.script.run
+    .withSuccessHandler(ok)
+    .withFailureHandler(e => no(new Error((e && e.message) || String(e))))[fn](...args);
+});
+
+const FIELDS = [
+  { k:'firma', l:'Firma' },
+  { k:'kisi', l:'Kişi' },
+  { k:'unvan', l:'Unvan' },
+  { k:'adres', l:'Adres', area:true },
+  { k:'sehir', l:'Şehir' },
+  { k:'email', l:'E-posta', im:'email' },
+  { k:'telefon', l:'Telefon', im:'tel' },
+  { k:'wechat', l:'WeChat' },
+  { k:'web', l:'Web sitesi', im:'url' }
+];
+
+const S = { view:'list', map:null, layer:null, cards:[], hasKey:false, isAdmin:false, newImgs:{on:null, arka:null}, cur:null, notes:[], noteImgs:[], full:{}, thumbs:{} };
+
+/* ---------- yardımcılar ---------- */
+let toastT;
+function toast(msg, err){
+  const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', err ? 5000 : 2600);
+}
+async function busy(btn, label, fn){
+  const old = btn.textContent; btn.disabled = true; btn.textContent = label;
+  try { return await fn(); }
+  catch(e){ toast(e.message, true); }
+  finally { btn.disabled = false; btn.textContent = old; }
+}
+function loadImg(src){
+  return new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('Resim açılamadı.')); i.src = src; });
+}
+async function resize(src, max, q){
+  const img = await loadImg(src);
+  const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', q);
+}
+async function fileToJpeg(file){
+  const url = URL.createObjectURL(file);
+  try { return await resize(url, 1600, 0.85); } finally { URL.revokeObjectURL(url); }
+}
+async function makeThumb(src){
+  // Google Sheets hücre sınırı (50.000 karakter) altında kalacak küçük resim
+  for (const [w, q] of [[320,.62],[280,.5],[220,.45],[180,.4]]) {
+    const d = await resize(src, w, q);
+    if (d.length < 45000) return d;
+  }
+  return '';
+}
+function fmtDate(iso){
+  const d = new Date(iso); if (isNaN(d)) return '';
+  return d.toLocaleString('tr-TR', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+function initials(c){
+  const s = (c.firma || c.kisi || '?').replace(/[^\p{L}\p{N} ]/gu,'').trim().split(/\s+/);
+  return esc(((s[0]||'?')[0] + ((s[1]||'')[0]||'')).toUpperCase());
+}
+function splitMulti(v){ return String(v||'').split(/\s*[\/;,]\s*(?=\S)/).map(x => x.trim()).filter(Boolean); }
+
+function openPanel(id){
+  const p = document.getElementById(id); p.hidden = false; p.scrollTop = 0;
+  requestAnimationFrame(() => p.classList.add('open'));
+  document.body.style.overflow = 'hidden';
+}
+function closePanel(id){
+  const p = document.getElementById(id); p.classList.remove('open');
+  setTimeout(() => { p.hidden = true; if (!document.querySelector('.panel.open')) document.body.style.overflow = ''; }, 180);
+}
+document.addEventListener('click', e => { const c = e.target.closest('[data-close]'); if (c) closePanel(c.dataset.close); });
+
+/* ---------- form ---------- */
+function formHtml(prefix, v, withNot){
+  v = v || {};
+  const f = x => {
+    const id = prefix + '-' + x.k, val = esc(v[x.k]);
+    return `<label for="${id}">${x.l}${x.area
+      ? `<textarea id="${id}" rows="2">${val}</textarea>`
+      : `<input id="${id}" value="${val}" ${x.im ? `inputmode="${x.im}"` : ''} autocomplete="off">`}</label>`;
+  };
+  const by = k => FIELDS.find(x => x.k === k);
+  return f(by('firma')) +
+    `<div class="two">${f(by('kisi'))}${f(by('unvan'))}</div>` +
+    f(by('adres')) +
+    `<div class="two">${f(by('sehir'))}${f(by('web'))}</div>` +
+    `<div class="two">${f(by('email'))}${f(by('telefon'))}</div>` +
+    f(by('wechat')) +
+    (withNot ? `<label for="${prefix}-not">Not<textarea id="${prefix}-not" rows="3" placeholder="Nerede tanıştınız, ne konuştunuz?">${esc(v.not)}</textarea></label>` : '');
+}
+function readForm(prefix, withNot){
+  const o = {};
+  FIELDS.forEach(x => o[x.k] = document.getElementById(prefix + '-' + x.k).value.trim());
+  if (withNot) o.not = document.getElementById(prefix + '-not').value.trim();
+  return o;
+}
+
+/* ---------- liste ---------- */
+const cityKey = v => String(v || '').trim().toLocaleLowerCase('tr');
+function renderCities(){
+  const sel = $('#city'), cur = sel.value, groups = {};
+  S.cards.forEach(c => { const k = cityKey(c.sehir); if (k) (groups[k] = groups[k] || { name: c.sehir.trim(), n: 0 }).n++; });
+  const keys = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'tr'));
+  const none = S.cards.filter(c => !cityKey(c.sehir)).length;
+  sel.innerHTML = '<option value="">Tüm şehirler</option>' +
+    keys.map(k => `<option value="${esc(k)}">${esc(groups[k].name)} (${groups[k].n})</option>`).join('') +
+    (none ? `<option value="__none">Şehri bilinmeyen (${none})</option>` : '');
+  sel.value = [...sel.options].some(o => o.value === cur) ? cur : '';
+}
+function filtered(){
+  const q = $('#search').value.trim().toLocaleLowerCase('tr'), city = $('#city').value;
+  return S.cards.filter(c =>
+    (!city || (city === '__none' ? !cityKey(c.sehir) : cityKey(c.sehir) === city)) &&
+    (!q || FIELDS.concat([{k:'not'}]).some(x => String(c[x.k]||'').toLocaleLowerCase('tr').includes(q))));
+}
+function renderList(){
+  renderCities();
+  const list = filtered();
+  if (S.view === 'map') renderMap(list);
+  $('#count').textContent = S.cards.length ? S.cards.length + ' kart' : '';
+  if (S.view === 'list') {
+    $('#empty').hidden = S.cards.length > 0;
+    $('#noMatch').hidden = !(S.cards.length && !list.length);
+  }
+  $('#list').innerHTML = list.map(c => `
+    <button class="item" data-id="${esc(c.id)}">
+      <div class="card">
+        ${c.kucukResim ? `<img src="${c.kucukResim}" alt="" loading="lazy">` : `<div class="ph">${initials(c)}</div>`}
+        ${c.notSayisi ? `<span class="badge">${c.notSayisi} not</span>` : ''}
+      </div>
+      <div class="t1">${esc(c.firma || c.kisi || 'Adsız kartvizit')}</div>
+      <div class="t2">${esc(c.firma ? c.kisi : c.unvan) || '&nbsp;'}</div>
+    </button>`).join('');
+}
+$('#list').addEventListener('click', e => { const b = e.target.closest('.item'); if (b) openDetail(b.dataset.id); });
+$('#search').addEventListener('input', renderList);
+$('#city').addEventListener('change', renderList);
+
+/* ---------- harita ---------- */
+function setView(v){
+  S.view = v;
+  $('#vList').setAttribute('aria-pressed', v === 'list'); $('#vMap').setAttribute('aria-pressed', v === 'map');
+  $('#list').hidden = v === 'map'; $('#mapWrap').hidden = v !== 'map';
+  if (v === 'map') { $('#empty').hidden = true; $('#noMatch').hidden = true; }
+  renderList();
+}
+$('#vList').addEventListener('click', () => setView('list'));
+$('#vMap').addEventListener('click', () => setView('map'));
+function renderMap(list){
+  $('#empty').hidden = true; $('#noMatch').hidden = true;
+  if (typeof L === 'undefined') { $('#mapNote').textContent = 'Harita kütüphanesi yüklenemedi. İnternet bağlantısını kontrol edip sayfayı yenileyin.'; return; }
+  if (!S.map) {
+    S.map = L.map('map', { worldCopyJump:true }).setView([39, 35], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; OpenStreetMap' }).addTo(S.map);
+    S.layer = L.layerGroup().addTo(S.map);
+  }
+  setTimeout(() => S.map.invalidateSize(), 50);
+  S.layer.clearLayers();
+  const pts = [];
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#E9B500';
+  list.forEach(c => {
+    const lat = parseFloat(c.enlem), lng = parseFloat(c.boylam);
+    if (isNaN(lat) || isNaN(lng)) return;
+    pts.push([lat, lng]);
+    L.circleMarker([lat, lng], { radius:8, weight:2, color:'#18212B', fillColor:accent, fillOpacity:1 })
+      .bindTooltip(esc(c.firma || c.kisi || 'Kartvizit'), { permanent:true, direction:'right', offset:[8,0], className:'firm' })
+      .on('click', () => openDetail(c.id))
+      .addTo(S.layer);
+  });
+  if (pts.length === 1) S.map.setView(pts[0], 13);
+  else if (pts.length) S.map.fitBounds(pts, { padding:[40, 40], maxZoom:14 });
+  const missing = list.length - pts.length;
+  $('#mapNote').textContent = (pts.length ? pts.length + ' firma haritada.' : 'Bu filtrede konumu olan firma yok.') +
+    (missing ? ` ${missing} kartın konumu yok (adres eksik veya bulunamadı). Ayarlar'dan "Eksik konumları bul" ile tekrar deneyebilirsiniz.` : '') +
+    ' Firmanın kartını açmak için noktaya dokunun.';
+}
+
+/* ---------- yeni kartvizit ---------- */
+const SHOT_HTML = {};
+document.querySelectorAll('.shot').forEach(s => SHOT_HTML[s.dataset.side] = s.querySelector('.cam').outerHTML);
+function setShot(side, src){
+  const shot = document.querySelector(`.shot[data-side="${side}"]`), fr = shot.querySelector('.frame');
+  fr.classList.add('has'); fr.querySelector('.cam, img').outerHTML = `<img src="${src}" alt="">`;
+  shot.querySelector('.retake').hidden = false;
+}
+function resetNew(){
+  S.newImgs = { on:null, arka:null };
+  document.querySelectorAll('.shot').forEach(s => {
+    const fr = s.querySelector('.frame'); fr.classList.remove('has');
+    fr.querySelector('.cam, img').outerHTML = SHOT_HTML[s.dataset.side];
+    s.querySelector('.retake').hidden = true;
+  });
+  $('#newForm').innerHTML = formHtml('n', {}, true);
+  updateReadBtn();
+}
+function updateReadBtn(){
+  $('#btnRead').disabled = !S.newImgs.on;
+  $('#readHint').innerHTML = !S.hasKey
+    ? 'Otomatik okuma için ChatGPT (OpenAI) anahtarı gerekli. <button class="linkbtn" id="goKey">Anahtarı şimdi girin</button> ya da bilgileri aşağıya elle yazın.'
+    : (S.newImgs.on ? '' : 'Önce ön yüzün fotoğrafını çekin.');
+}
+document.querySelectorAll('.shot').forEach(shot => {
+  shot.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListener('change', async () => {
+    const f = inp.files[0]; inp.value = ''; if (!f) return;
+    try { const d = await fileToJpeg(f); S.newImgs[shot.dataset.side] = d; setShot(shot.dataset.side, d); updateReadBtn(); }
+    catch(e){ toast(e.message, true); }
+  }));
+});
+$('#readHint').addEventListener('click', e => { if (e.target.id === 'goKey') openAdmin(); });
+$('#fab').addEventListener('click', () => { resetNew(); openPanel('pNew'); });
+
+$('#btnRead').addEventListener('click', () => {
+  if (!S.hasKey) { toast('Önce yönetim panelinden OpenAI anahtarını girin.', true); return; }
+  const wrap = $('#newFormWrap');
+  busy($('#btnRead'), 'Okunuyor…', async () => {
+    wrap.classList.add('reading');
+    try {
+      const r = await api('readCard', [S.newImgs.on, S.newImgs.arka].filter(Boolean));
+      FIELDS.forEach(x => { document.getElementById('n-' + x.k).value = r[x.k] || ''; });
+      toast('Bilgiler okundu. Kontrol edip kaydedin.');
+    } finally { wrap.classList.remove('reading'); }
+  });
+});
+
+$('#btnSaveNew').addEventListener('click', () => {
+  const data = readForm('n', true);
+  if (!S.newImgs.on && !data.firma && !data.kisi) { toast('Fotoğraf ekleyin ya da en azından firma veya kişi adını yazın.', true); return; }
+  busy($('#btnSaveNew'), 'Kaydediliyor…', async () => {
+    if (S.newImgs.on) {
+      data.onResim = S.newImgs.on;
+      data.kucukResim = await makeThumb(S.newImgs.on);
+    }
+    if (S.newImgs.arka) data.arkaResim = S.newImgs.arka;
+    const card = await api('saveCard', data);
+    if (S.newImgs.on) S.full[card.onResimId] = S.newImgs.on;
+    if (S.newImgs.arka) S.full[card.arkaResimId] = S.newImgs.arka;
+    S.cards.unshift(card); renderList(); closePanel('pNew');
+    toast('Kartvizit kaydedildi.');
+  });
+});
+
+/* ---------- detay ---------- */
+function curCard(){ return S.cards.find(c => c.id === S.cur); }
+
+function renderInfo(c){
+  const row = (l, html) => html ? `<dt>${l}</dt><dd>${html}</dd>` : '';
+  const tel = splitMulti(c.telefon).map(t => { const n = t.replace(/[^\d+]/g,''); return n.length > 5 ? `<a href="tel:${esc(n)}">${esc(t)}</a>` : esc(t); }).join('<br>');
+  const mail = splitMulti(c.email).map(m => `<a href="mailto:${esc(m)}">${esc(m)}</a>`).join('<br>');
+  const web = c.web ? `<a href="${esc(/^https?:/i.test(c.web) ? c.web : 'https://' + c.web)}" target="_blank" rel="noopener">${esc(c.web)}</a>` : '';
+  const wc = c.wechat ? `${esc(c.wechat)}<button class="copy" data-copy="${esc(c.wechat)}">Kopyala</button>` : '';
+  const mq = c.enlem && c.boylam ? `${c.enlem},${c.boylam}` : [c.firma, c.adres].filter(Boolean).join(', ');
+  const addr = c.adres ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mq)}" target="_blank" rel="noopener">${esc(c.adres)}</a>` : '';
+  const html = row('Firma', esc(c.firma)) + row('Kişi', esc(c.kisi)) + row('Unvan', esc(c.unvan)) +
+    row('Telefon', tel) + row('E-posta', mail) + row('WeChat', wc) + row('Adres', addr) + row('Şehir', esc(c.sehir)) + row('Web', web);
+  $('#dInfo').innerHTML = html ? `<dl class="info">${html}</dl>` : `<p class="hint">Kartta bilgi yok. Düzenle ile ekleyebilirsiniz.</p>`;
+}
+$('#dInfo').addEventListener('click', async e => {
+  const b = e.target.closest('[data-copy]'); if (!b) return;
+  const v = b.dataset.copy;
+  try { await navigator.clipboard.writeText(v); }
+  catch(_) { const t = document.createElement('textarea'); t.value = v; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  toast('WeChat kimliği kopyalandı.');
+});
+
+function renderCardImgs(c){
+  const ids = [c.onResimId, c.arkaResimId].filter(Boolean);
+  const box = $('#dCards');
+  box.className = 'd-cards' + (ids.length > 1 ? ' two' : '');
+  box.innerHTML = ids.map((id, i) => {
+    const src = S.full[id] || (i === 0 ? c.kucukResim : '');
+    return `<button data-img="${esc(id)}" aria-label="${i ? 'Arka yüzü büyüt' : 'Ön yüzü büyüt'}">${src ? `<img src="${src}" alt="">` : ''}</button>`;
+  }).join('');
+  const missing = ids.filter(id => !S.full[id]);
+  if (missing.length) api('getImages', missing).then(m => {
+    Object.assign(S.full, m);
+    if (S.cur !== c.id) return;
+    missing.forEach(id => { const b = box.querySelector(`[data-img="${id}"]`); if (b && m[id]) b.innerHTML = `<img src="${m[id]}" alt="">`; });
+  }).catch(() => {});
+}
+$('#dCards').addEventListener('click', e => { const b = e.target.closest('[data-img]'); if (b) lightbox(b.dataset.img); });
+
+function openDetail(id){
+  S.cur = id; S.notes = []; S.noteImgs = [];
+  const c = curCard(); if (!c) return;
+  $('#dTitle').textContent = c.firma || c.kisi || 'Kartvizit';
+  $('#dInfo').hidden = false; $('#dEdit').hidden = true; $('#btnEdit').hidden = false;
+  renderInfo(c); renderCardImgs(c);
+  $('#dNot').value = c.not || ''; $('#btnSaveNot').disabled = true;
+  $('#ncText').value = ''; renderNotePreviews();
+  $('#dNotes').innerHTML = '<li class="loading">Notlar yükleniyor…</li>';
+  openPanel('pDetail');
+  api('getCard', id).then(r => {
+    if (S.cur !== id) return;
+    Object.assign(c, r.card); c.notSayisi = r.notes.length;
+    S.notes = r.notes; renderNotes(); renderList();
+  }).catch(e => { $('#dNotes').innerHTML = ''; toast(e.message, true); });
+}
+
+$('#btnEdit').addEventListener('click', () => {
+  $('#editForm').innerHTML = formHtml('e', curCard(), false);
+  $('#dInfo').hidden = true; $('#dEdit').hidden = false; $('#btnEdit').hidden = true;
+});
+$('#btnCancelEdit').addEventListener('click', () => { $('#dInfo').hidden = false; $('#dEdit').hidden = true; $('#btnEdit').hidden = false; });
+$('#btnSaveEdit').addEventListener('click', () => busy($('#btnSaveEdit'), 'Kaydediliyor…', async () => {
+  const data = readForm('e', false); data.id = S.cur;
+  const updated = await api('saveCard', data);
+  const c = curCard(); Object.assign(c, updated);
+  $('#dTitle').textContent = c.firma || c.kisi || 'Kartvizit';
+  renderInfo(c); renderList();
+  $('#dInfo').hidden = false; $('#dEdit').hidden = true; $('#btnEdit').hidden = false;
+  toast('Değişiklikler kaydedildi.');
+}));
+
+$('#dNot').addEventListener('input', () => { $('#btnSaveNot').disabled = $('#dNot').value === (curCard().not || ''); });
+$('#btnSaveNot').addEventListener('click', () => busy($('#btnSaveNot'), 'Kaydediliyor…', async () => {
+  const updated = await api('saveCard', { id: S.cur, not: $('#dNot').value.trim() });
+  Object.assign(curCard(), updated); renderList();
+  toast('Not kaydedildi.');
+}).then(() => { $('#btnSaveNot').disabled = $('#dNot').value.trim() === (curCard().not || ''); }));
+
+$('#btnDelete').addEventListener('click', () => {
+  const c = curCard();
+  if (!confirm(`"${c.firma || c.kisi || 'Bu kartvizit'}" ve tüm notları silinsin mi? Resimler Drive çöp kutusuna taşınır.`)) return;
+  busy($('#btnDelete'), 'Siliniyor…', async () => {
+    await api('deleteCard', c.id);
+    S.cards = S.cards.filter(x => x.id !== c.id); renderList(); closePanel('pDetail');
+    toast('Kartvizit silindi.');
+  });
+});
+
+/* ---------- resimli notlar ---------- */
+function renderNotePreviews(){
+  $('#ncPreviews').innerHTML = S.noteImgs.map((d, i) => `<div class="pv"><img src="${d}" alt=""><button data-rm="${i}" aria-label="Fotoğrafı çıkar">×</button></div>`).join('');
+}
+$('#ncPreviews').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if (b) { S.noteImgs.splice(+b.dataset.rm, 1); renderNotePreviews(); } });
+['#ncCam', '#ncGal'].forEach(sel => $(sel).addEventListener('change', async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  for (const f of files) { try { S.noteImgs.push(await fileToJpeg(f)); } catch(err) { toast(err.message, true); } }
+  renderNotePreviews();
+}));
+
+function renderNotes(){
+  const ul = $('#dNotes');
+  if (!S.notes.length) { ul.innerHTML = '<li class="hint" style="padding-top:12px">Bu kartvizite henüz not eklenmedi.</li>'; return; }
+  ul.innerHTML = S.notes.map(n => `
+    <li class="note" data-note="${esc(n.id)}">
+      <div class="meta"><span>${fmtDate(n.tarih)}</span><button class="linkbtn" data-delnote="${esc(n.id)}">Sil</button></div>
+      ${n.metin ? `<p>${esc(n.metin)}</p>` : ''}
+      ${n.resimIdleri.length ? `<div class="imgs">${n.resimIdleri.map(id => `<button data-img="${esc(id)}" aria-label="Fotoğrafı büyüt">${(S.full[id] || S.thumbs[id]) ? `<img src="${S.full[id] || S.thumbs[id]}" alt="">` : ''}</button>`).join('')}</div>` : ''}
+    </li>`).join('');
+  const need = S.notes.flatMap(n => n.resimIdleri).filter(id => !S.full[id] && !S.thumbs[id]);
+  if (need.length) {
+    const cardId = S.cur;
+    api('getThumbs', need).then(m => {
+      Object.assign(S.thumbs, m);
+      if (S.cur !== cardId) return;
+      need.forEach(id => ul.querySelectorAll(`[data-img="${id}"]`).forEach(b => { if (m[id]) b.innerHTML = `<img src="${m[id]}" alt="">`; }));
+    }).catch(() => {});
+  }
+}
+$('#dNotes').addEventListener('click', e => {
+  const img = e.target.closest('[data-img]'); if (img) { lightbox(img.dataset.img); return; }
+  const del = e.target.closest('[data-delnote]'); if (!del) return;
+  if (!confirm('Bu not silinsin mi?')) return;
+  busy(del, '…', async () => {
+    await api('deleteNote', del.dataset.delnote);
+    S.notes = S.notes.filter(n => n.id !== del.dataset.delnote);
+    const c = curCard(); if (c) c.notSayisi = S.notes.length;
+    renderNotes(); renderList(); toast('Not silindi.');
+  });
+});
+
+$('#btnAddNote').addEventListener('click', () => {
+  const metin = $('#ncText').value.trim();
+  if (!metin && !S.noteImgs.length) { toast('Not yazın veya fotoğraf ekleyin.', true); return; }
+  const cardId = S.cur, imgs = S.noteImgs.slice();
+  busy($('#btnAddNote'), 'Ekleniyor…', async () => {
+    const note = await api('addNote', { kartId: cardId, metin, resimler: imgs });
+    note.resimIdleri.forEach((id, i) => S.full[id] = imgs[i]);
+    if (S.cur === cardId) {
+      S.notes.unshift(note); S.noteImgs = []; $('#ncText').value = '';
+      renderNotePreviews(); renderNotes();
+    }
+    const c = S.cards.find(x => x.id === cardId); if (c) c.notSayisi = (c.notSayisi || 0) + 1;
+    renderList(); toast('Not eklendi.');
+  });
+});
+
+/* ---------- lightbox ---------- */
+function lightbox(id){
+  const lb = $('#lightbox'), img = lb.querySelector('img'), wait = lb.querySelector('.wait');
+  lb.hidden = false;
+  const show = src => { img.src = src; img.hidden = false; wait.hidden = true; };
+  if (S.full[id]) { show(S.full[id]); return; }
+  img.hidden = true; wait.hidden = false;
+  if (S.thumbs[id]) show(S.thumbs[id]);
+  api('getImages', [id]).then(m => { if (m[id]) { S.full[id] = m[id]; if (!lb.hidden) show(m[id]); } }).catch(e => toast(e.message, true));
+}
+$('#lightbox').addEventListener('click', () => { $('#lightbox').hidden = true; });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#lightbox').hidden = true; });
+
+/* ---------- yönetim paneli ---------- */
+function renderAdmin(s){
+  $('#adminBody').className = '';
+  $('#adminBody').innerHTML = `
+    <h3 style="margin:0 0 10px">ChatGPT (OpenAI) anahtarı</h3>
+    <p class="hint" style="margin:0 0 12px">${s.hasKey ? 'Kayıtlı anahtar: <strong>' + esc(s.keyHint) + '</strong>' : 'Henüz anahtar girilmedi. platform.openai.com → API keys bölümünden aldığınız sk- ile başlayan anahtarı yapıştırın.'}</p>
+    <div class="form">
+      <label for="aKey">${s.hasKey ? 'Yeni anahtar (değiştirmek için)' : 'API anahtarı'}
+        <input id="aKey" type="password" autocomplete="off" placeholder="sk-…">
+      </label>
+      <label for="aModel">Model
+        <input id="aModel" list="models" value="${esc(s.model)}" autocomplete="off">
+        <datalist id="models"><option value="gpt-4o-mini"><option value="gpt-4o"><option value="gpt-4.1-mini"><option value="gpt-4.1"></datalist>
+      </label>
+    </div>
+    <p class="hint">Anahtar sunucu tarafında (Apps Script özelliklerinde) saklanır; tarayıcıya ve tabloya yazılmaz.</p>
+    <div class="actions">
+      <button id="aSave" class="btn primary">Ayarları kaydet</button>
+      <button id="aTest" class="btn" ${s.hasKey ? '' : 'disabled'}>Anahtarı test et</button>
+    </div>
+    <div class="section">
+      <h3>Harita konumları</h3>
+      <p class="hint" style="margin:0 0 10px">${s.missingGeo ? s.missingGeo + ' kartın adresi var ama konumu yok.' : 'Adresi olan tüm kartların konumu var.'} Yeni kartların konumu kaydederken otomatik bulunur.</p>
+      <button id="aGeo" class="btn" ${s.missingGeo ? '' : 'disabled'}>Eksik konumları bul</button>
+    </div>
+    <div class="section">
+      <h3>Veriler</h3>
+      <div class="actions">
+        <a class="btn" href="${esc(s.sheetUrl)}" target="_blank" rel="noopener">Veri tablosunu aç</a>
+        <a class="btn" href="${esc(s.folderUrl)}" target="_blank" rel="noopener">Resim klasörünü aç</a>
+      </div>
+    </div>
+    ${s.hasKey ? `<div class="section"><button id="aRemove" class="btn danger">Anahtarı sil</button></div>` : ''}`;
+  $('#aSave').onclick = () => busy($('#aSave'), 'Kaydediliyor…', async () => {
+    const ns = await api('saveSettings', { key: $('#aKey').value, model: $('#aModel').value });
+    S.hasKey = ns.hasKey; $('#btnAdmin').classList.toggle('warn', !ns.hasKey); updateReadBtn(); renderAdmin(ns); toast('Ayarlar kaydedildi.');
+  });
+  $('#aGeo').onclick = () => busy($('#aGeo'), 'Konumlar bulunuyor…', async () => {
+    let total = 0, failed = 0, r;
+    do { r = await api('geocodeMissing'); total += r.done; failed = r.failed; } while (r.remaining > 0);
+    const d = await api('getInitialData'); S.cards = d.cards; renderList();
+    renderAdmin(await api('getSettings'));
+    toast(total + ' kartın konumu eklendi.' + (failed ? ' ' + failed + ' adres bulunamadı; adresi düzenleyip tekrar deneyin.' : ''));
+  });
+  $('#aTest').onclick = () => busy($('#aTest'), 'Test ediliyor…', async () => toast(await api('testKey')));
+  if ($('#aRemove')) $('#aRemove').onclick = () => {
+    if (!confirm('OpenAI anahtarı silinsin mi? Otomatik okuma kapanır.')) return;
+    busy($('#aRemove'), 'Siliniyor…', async () => { const ns = await api('saveSettings', { removeKey:true }); S.hasKey = false; $('#btnAdmin').classList.add('warn'); updateReadBtn(); renderAdmin(ns); toast('Anahtar silindi.'); });
+  };
+}
+function openAdmin(){
+  $('#adminBody').className = 'loading'; $('#adminBody').textContent = 'Ayarlar yükleniyor…';
+  openPanel('pAdmin');
+  api('getSettings').then(renderAdmin).catch(e => { $('#adminBody').textContent = e.message; });
+}
+$('#btnAdmin').addEventListener('click', openAdmin);
+
+/* ---------- başlat ---------- */
+api('getInitialData').then(d => {
+  S.cards = d.cards; S.hasKey = d.hasKey; S.isAdmin = d.isAdmin;
+  if (!d.hasKey) $('#btnAdmin').classList.add('warn');
+  $('#loadingList').hidden = true; renderList();
+}).catch(e => { $('#loadingList').textContent = 'Yüklenemedi: ' + e.message; });
+</script>
+</body>
+</html>
