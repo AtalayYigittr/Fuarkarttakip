@@ -6,6 +6,8 @@
 <meta name="color-scheme" content="light dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{
   --paper:#EEF1F3; --surface:#FFFFFF; --ink:#18212B; --muted:#5B6875; --line:#D3DAE0;
@@ -42,6 +44,18 @@ button,input,textarea{font:inherit;color:inherit}
 .item .t1{margin-top:8px;font-weight:600;font-size:.95rem;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item .t2{color:var(--muted);font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item:hover .card{border-color:var(--muted)}
+.filters{display:flex;gap:8px;max-width:1100px;margin:10px auto 0;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-ui);overflow:hidden;background:var(--surface)}
+.seg button{all:unset;cursor:pointer;padding:8px 14px;font-weight:500;font-size:.95rem}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.city{flex:1;min-width:150px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-ui);background:var(--surface);color:var(--ink);font:inherit}
+.text-btn{all:unset;cursor:pointer;margin-left:auto;padding:6px 12px;border:1px solid var(--line);border-radius:20px;font-size:.9rem;font-weight:500;background:var(--surface)}
+.text-btn.warn{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+#mapWrap{max-width:1100px;margin:16px auto 0;padding:0 16px}
+#map{height:calc(100vh - 230px);min-height:340px;border-radius:var(--r-ui);border:1px solid var(--line);z-index:0}
+.leaflet-tooltip.firm{background:var(--surface);color:var(--ink);border:1px solid var(--line);font:600 12px/1.2 var(--font);padding:3px 7px;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.leaflet-tooltip.firm::before{display:none}
+.map-note{color:var(--muted);font-size:.88rem;margin:8px 0 0}
 .empty{max-width:420px;margin:60px auto;padding:0 24px;text-align:center;color:var(--muted)}
 .empty strong{display:block;color:var(--ink);font-size:1.15rem;margin-bottom:6px}
 
@@ -69,9 +83,12 @@ button,input,textarea{font:inherit;color:inherit}
 /* Fotoğraf alanları */
 .shots{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:520px){.shots{grid-template-columns:1fr}}
-.shot .frame{aspect-ratio:85/55;border:1.5px dashed var(--line);border-radius:var(--r-card);background:var(--surface);display:grid;place-items:center;overflow:hidden;color:var(--muted);font-size:.9rem;text-align:center;padding:8px}
+.shot .frame{cursor:pointer;aspect-ratio:85/55;border:1.5px dashed var(--line);border-radius:var(--r-card);background:var(--surface);display:grid;place-items:center;overflow:hidden;color:var(--muted);font-size:.9rem;text-align:center;padding:8px}
 .shot .frame.has{border-style:solid;padding:0}
 .shot .frame img{width:100%;height:100%;object-fit:cover;display:block}
+.shot .frame input{display:none}
+.shot .frame .cam{display:grid;gap:6px;justify-items:center}
+.shot .retake{color:var(--muted);font-size:.85rem;margin-top:6px}
 .shot .lbl{font-weight:600;font-size:.95rem;margin-bottom:6px}
 .shot .lbl span{color:var(--muted);font-weight:400}
 .shot .row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
@@ -109,7 +126,8 @@ button,input,textarea{font:inherit;color:inherit}
 .composer .tools .btn{padding:8px 12px;font-size:.9rem;min-height:40px}
 .composer .tools .primary{margin-left:auto}
 .previews{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.previews:empty{display:none}
+.add-img{all:unset;cursor:pointer;width:72px;height:72px;border-radius:8px;border:1.5px dashed var(--muted);display:grid;place-items:center;text-align:center;font-size:.78rem;line-height:1.2;color:var(--muted);font-weight:600}
+.add-img input{display:none}
 .pv{position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
 .pv img{width:100%;height:100%;object-fit:cover}
 .pv button{all:unset;cursor:pointer;position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;display:grid;place-items:center;font-size:14px}
@@ -140,11 +158,16 @@ button,input,textarea{font:inherit;color:inherit}
   <div class="top-row">
     <h1>Kartvizitler</h1>
     <span id="count" class="count"></span>
-    <button id="btnAdmin" class="icon-btn" aria-label="Yönetim paneli" title="Yönetim paneli">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    </button>
+    <button id="btnAdmin" class="text-btn">Ayarlar</button>
   </div>
   <input id="search" class="search" type="search" placeholder="Firma, kişi, e-posta, telefon veya WeChat ara" autocomplete="off">
+  <div class="filters">
+    <div class="seg" role="group" aria-label="Görünüm">
+      <button id="vList" aria-pressed="true">Liste</button>
+      <button id="vMap" aria-pressed="false">Harita</button>
+    </div>
+    <select id="city" class="city" aria-label="Şehre göre filtrele"><option value="">Tüm şehirler</option></select>
+  </div>
 </header>
 
 <main>
@@ -155,6 +178,10 @@ button,input,textarea{font:inherit;color:inherit}
     Sağ alttaki düğmeyle ilk kartvizitin fotoğrafını çekin; firma, kişi ve iletişim bilgileri otomatik doldurulur.
   </div>
   <div id="noMatch" class="empty" hidden>Aramanızla eşleşen kartvizit yok.</div>
+  <div id="mapWrap" hidden>
+    <div id="map"></div>
+    <p id="mapNote" class="map-note"></p>
+  </div>
 </main>
 
 <button id="fab" class="fab">+ Kartvizit ekle</button>
@@ -169,19 +196,13 @@ button,input,textarea{font:inherit;color:inherit}
     <div class="shots">
       <div class="shot" data-side="on">
         <div class="lbl">Ön yüz</div>
-        <div class="frame">Kartı düz bir zemine koyup yakından çekin</div>
-        <div class="row">
-          <label class="btn">Fotoğraf çek<input type="file" accept="image/*" capture="environment"></label>
-          <label class="btn">Galeriden<input type="file" accept="image/*"></label>
-        </div>
+        <label class="frame"><span class="cam"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Fotoğraf çekmek için dokunun</span><input type="file" accept="image/*" capture="environment"></label>
+        <div class="retake" hidden>Yeniden çekmek için resme dokunun</div>
       </div>
       <div class="shot" data-side="arka">
         <div class="lbl">Arka yüz <span>(isteğe bağlı)</span></div>
-        <div class="frame">Arkada WeChat veya adres varsa ekleyin</div>
-        <div class="row">
-          <label class="btn">Fotoğraf çek<input type="file" accept="image/*" capture="environment"></label>
-          <label class="btn">Galeriden<input type="file" accept="image/*"></label>
-        </div>
+        <label class="frame"><span class="cam"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Arka yüzü çekmek için dokunun</span><input type="file" accept="image/*" capture="environment"></label>
+        <div class="retake" hidden>Yeniden çekmek için resme dokunun</div>
       </div>
     </div>
     <div class="actions">
@@ -230,10 +251,12 @@ button,input,textarea{font:inherit;color:inherit}
       <h3>Resimli notlar</h3>
       <div class="composer">
         <textarea id="ncText" class="ta" placeholder="Görüşme, numune, fiyat… ne not almak istersiniz?"></textarea>
-        <div id="ncPreviews" class="previews"></div>
+        <div class="previews">
+          <label class="add-img">+ Resim<br>ekle<input id="ncCam" type="file" accept="image/*" capture="environment"></label>
+          <span id="ncPreviews" style="display:contents"></span>
+        </div>
         <div class="tools">
-          <label class="btn">Fotoğraf çek<input id="ncCam" type="file" accept="image/*" capture="environment"></label>
-          <label class="btn">Galeriden<input id="ncGal" type="file" accept="image/*" multiple></label>
+          <label class="linkbtn">Galeriden seç<input id="ncGal" type="file" accept="image/*" multiple hidden></label>
           <button id="btnAddNote" class="btn primary">Notu ekle</button>
         </div>
       </div>
@@ -274,13 +297,14 @@ const FIELDS = [
   { k:'kisi', l:'Kişi' },
   { k:'unvan', l:'Unvan' },
   { k:'adres', l:'Adres', area:true },
+  { k:'sehir', l:'Şehir' },
   { k:'email', l:'E-posta', im:'email' },
   { k:'telefon', l:'Telefon', im:'tel' },
   { k:'wechat', l:'WeChat' },
   { k:'web', l:'Web sitesi', im:'url' }
 ];
 
-const S = { cards:[], hasKey:false, isAdmin:false, newImgs:{on:null, arka:null}, cur:null, notes:[], noteImgs:[], full:{}, thumbs:{} };
+const S = { view:'list', map:null, layer:null, cards:[], hasKey:false, isAdmin:false, newImgs:{on:null, arka:null}, cur:null, notes:[], noteImgs:[], full:{}, thumbs:{} };
 
 /* ---------- yardımcılar ---------- */
 let toastT;
@@ -352,8 +376,9 @@ function formHtml(prefix, v, withNot){
   return f(by('firma')) +
     `<div class="two">${f(by('kisi'))}${f(by('unvan'))}</div>` +
     f(by('adres')) +
+    `<div class="two">${f(by('sehir'))}${f(by('web'))}</div>` +
     `<div class="two">${f(by('email'))}${f(by('telefon'))}</div>` +
-    `<div class="two">${f(by('wechat'))}${f(by('web'))}</div>` +
+    f(by('wechat')) +
     (withNot ? `<label for="${prefix}-not">Not<textarea id="${prefix}-not" rows="3" placeholder="Nerede tanıştınız, ne konuştunuz?">${esc(v.not)}</textarea></label>` : '');
 }
 function readForm(prefix, withNot){
@@ -364,12 +389,32 @@ function readForm(prefix, withNot){
 }
 
 /* ---------- liste ---------- */
+const cityKey = v => String(v || '').trim().toLocaleLowerCase('tr');
+function renderCities(){
+  const sel = $('#city'), cur = sel.value, groups = {};
+  S.cards.forEach(c => { const k = cityKey(c.sehir); if (k) (groups[k] = groups[k] || { name: c.sehir.trim(), n: 0 }).n++; });
+  const keys = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'tr'));
+  const none = S.cards.filter(c => !cityKey(c.sehir)).length;
+  sel.innerHTML = '<option value="">Tüm şehirler</option>' +
+    keys.map(k => `<option value="${esc(k)}">${esc(groups[k].name)} (${groups[k].n})</option>`).join('') +
+    (none ? `<option value="__none">Şehri bilinmeyen (${none})</option>` : '');
+  sel.value = [...sel.options].some(o => o.value === cur) ? cur : '';
+}
+function filtered(){
+  const q = $('#search').value.trim().toLocaleLowerCase('tr'), city = $('#city').value;
+  return S.cards.filter(c =>
+    (!city || (city === '__none' ? !cityKey(c.sehir) : cityKey(c.sehir) === city)) &&
+    (!q || FIELDS.concat([{k:'not'}]).some(x => String(c[x.k]||'').toLocaleLowerCase('tr').includes(q))));
+}
 function renderList(){
-  const q = $('#search').value.trim().toLocaleLowerCase('tr');
-  const list = S.cards.filter(c => !q || FIELDS.concat([{k:'not'}]).some(x => String(c[x.k]||'').toLocaleLowerCase('tr').includes(q)));
+  renderCities();
+  const list = filtered();
+  if (S.view === 'map') renderMap(list);
   $('#count').textContent = S.cards.length ? S.cards.length + ' kart' : '';
-  $('#empty').hidden = S.cards.length > 0;
-  $('#noMatch').hidden = !(S.cards.length && !list.length);
+  if (S.view === 'list') {
+    $('#empty').hidden = S.cards.length > 0;
+    $('#noMatch').hidden = !(S.cards.length && !list.length);
+  }
   $('#list').innerHTML = list.map(c => `
     <button class="item" data-id="${esc(c.id)}">
       <div class="card">
@@ -382,17 +427,61 @@ function renderList(){
 }
 $('#list').addEventListener('click', e => { const b = e.target.closest('.item'); if (b) openDetail(b.dataset.id); });
 $('#search').addEventListener('input', renderList);
+$('#city').addEventListener('change', renderList);
+
+/* ---------- harita ---------- */
+function setView(v){
+  S.view = v;
+  $('#vList').setAttribute('aria-pressed', v === 'list'); $('#vMap').setAttribute('aria-pressed', v === 'map');
+  $('#list').hidden = v === 'map'; $('#mapWrap').hidden = v !== 'map';
+  if (v === 'map') { $('#empty').hidden = true; $('#noMatch').hidden = true; }
+  renderList();
+}
+$('#vList').addEventListener('click', () => setView('list'));
+$('#vMap').addEventListener('click', () => setView('map'));
+function renderMap(list){
+  $('#empty').hidden = true; $('#noMatch').hidden = true;
+  if (typeof L === 'undefined') { $('#mapNote').textContent = 'Harita kütüphanesi yüklenemedi. İnternet bağlantısını kontrol edip sayfayı yenileyin.'; return; }
+  if (!S.map) {
+    S.map = L.map('map', { worldCopyJump:true }).setView([39, 35], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; OpenStreetMap' }).addTo(S.map);
+    S.layer = L.layerGroup().addTo(S.map);
+  }
+  setTimeout(() => S.map.invalidateSize(), 50);
+  S.layer.clearLayers();
+  const pts = [];
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#E9B500';
+  list.forEach(c => {
+    const lat = parseFloat(c.enlem), lng = parseFloat(c.boylam);
+    if (isNaN(lat) || isNaN(lng)) return;
+    pts.push([lat, lng]);
+    L.circleMarker([lat, lng], { radius:8, weight:2, color:'#18212B', fillColor:accent, fillOpacity:1 })
+      .bindTooltip(esc(c.firma || c.kisi || 'Kartvizit'), { permanent:true, direction:'right', offset:[8,0], className:'firm' })
+      .on('click', () => openDetail(c.id))
+      .addTo(S.layer);
+  });
+  if (pts.length === 1) S.map.setView(pts[0], 13);
+  else if (pts.length) S.map.fitBounds(pts, { padding:[40, 40], maxZoom:14 });
+  const missing = list.length - pts.length;
+  $('#mapNote').textContent = (pts.length ? pts.length + ' firma haritada.' : 'Bu filtrede konumu olan firma yok.') +
+    (missing ? ` ${missing} kartın konumu yok (adres eksik veya bulunamadı). Ayarlar'dan "Eksik konumları bul" ile tekrar deneyebilirsiniz.` : '') +
+    ' Firmanın kartını açmak için noktaya dokunun.';
+}
 
 /* ---------- yeni kartvizit ---------- */
+const SHOT_HTML = {};
+document.querySelectorAll('.shot').forEach(s => SHOT_HTML[s.dataset.side] = s.querySelector('.cam').outerHTML);
 function setShot(side, src){
-  const fr = document.querySelector(`.shot[data-side="${side}"] .frame`);
-  fr.classList.add('has'); fr.innerHTML = `<img src="${src}" alt="">`;
+  const shot = document.querySelector(`.shot[data-side="${side}"]`), fr = shot.querySelector('.frame');
+  fr.classList.add('has'); fr.querySelector('.cam, img').outerHTML = `<img src="${src}" alt="">`;
+  shot.querySelector('.retake').hidden = false;
 }
 function resetNew(){
   S.newImgs = { on:null, arka:null };
   document.querySelectorAll('.shot').forEach(s => {
     const fr = s.querySelector('.frame'); fr.classList.remove('has');
-    fr.textContent = s.dataset.side === 'on' ? 'Kartı düz bir zemine koyup yakından çekin' : 'Arkada WeChat veya adres varsa ekleyin';
+    fr.querySelector('.cam, img').outerHTML = SHOT_HTML[s.dataset.side];
+    s.querySelector('.retake').hidden = true;
   });
   $('#newForm').innerHTML = formHtml('n', {}, true);
   updateReadBtn();
@@ -400,8 +489,8 @@ function resetNew(){
 function updateReadBtn(){
   $('#btnRead').disabled = !S.newImgs.on;
   $('#readHint').innerHTML = !S.hasKey
-    ? 'Otomatik okuma için yönetim panelinden OpenAI anahtarı girilmeli. Bilgileri aşağıya elle de yazabilirsiniz.'
-    : (S.newImgs.on ? '' : 'Önce ön yüzün fotoğrafını ekleyin.');
+    ? 'Otomatik okuma için ChatGPT (OpenAI) anahtarı gerekli. <button class="linkbtn" id="goKey">Anahtarı şimdi girin</button> ya da bilgileri aşağıya elle yazın.'
+    : (S.newImgs.on ? '' : 'Önce ön yüzün fotoğrafını çekin.');
 }
 document.querySelectorAll('.shot').forEach(shot => {
   shot.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListener('change', async () => {
@@ -410,6 +499,7 @@ document.querySelectorAll('.shot').forEach(shot => {
     catch(e){ toast(e.message, true); }
   }));
 });
+$('#readHint').addEventListener('click', e => { if (e.target.id === 'goKey') openAdmin(); });
 $('#fab').addEventListener('click', () => { resetNew(); openPanel('pNew'); });
 
 $('#btnRead').addEventListener('click', () => {
@@ -451,9 +541,10 @@ function renderInfo(c){
   const mail = splitMulti(c.email).map(m => `<a href="mailto:${esc(m)}">${esc(m)}</a>`).join('<br>');
   const web = c.web ? `<a href="${esc(/^https?:/i.test(c.web) ? c.web : 'https://' + c.web)}" target="_blank" rel="noopener">${esc(c.web)}</a>` : '';
   const wc = c.wechat ? `${esc(c.wechat)}<button class="copy" data-copy="${esc(c.wechat)}">Kopyala</button>` : '';
-  const addr = c.adres ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.adres)}" target="_blank" rel="noopener">${esc(c.adres)}</a>` : '';
+  const mq = c.enlem && c.boylam ? `${c.enlem},${c.boylam}` : [c.firma, c.adres].filter(Boolean).join(', ');
+  const addr = c.adres ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mq)}" target="_blank" rel="noopener">${esc(c.adres)}</a>` : '';
   const html = row('Firma', esc(c.firma)) + row('Kişi', esc(c.kisi)) + row('Unvan', esc(c.unvan)) +
-    row('Telefon', tel) + row('E-posta', mail) + row('WeChat', wc) + row('Adres', addr) + row('Web', web);
+    row('Telefon', tel) + row('E-posta', mail) + row('WeChat', wc) + row('Adres', addr) + row('Şehir', esc(c.sehir)) + row('Web', web);
   $('#dInfo').innerHTML = html ? `<dl class="info">${html}</dl>` : `<p class="hint">Kartta bilgi yok. Düzenle ile ekleyebilirsiniz.</p>`;
 }
 $('#dInfo').addEventListener('click', async e => {
@@ -605,9 +696,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#lightbox
 function renderAdmin(s){
   $('#adminBody').className = '';
   $('#adminBody').innerHTML = `
+    <h3 style="margin:0 0 10px">ChatGPT (OpenAI) anahtarı</h3>
+    <p class="hint" style="margin:0 0 12px">${s.hasKey ? 'Kayıtlı anahtar: <strong>' + esc(s.keyHint) + '</strong>' : 'Henüz anahtar girilmedi. platform.openai.com → API keys bölümünden aldığınız sk- ile başlayan anahtarı yapıştırın.'}</p>
     <div class="form">
-      <label for="aKey">OpenAI API anahtarı
-        <input id="aKey" type="password" autocomplete="off" placeholder="${s.hasKey ? 'Kayıtlı: ' + esc(s.keyHint) + ' — değiştirmek için yenisini yazın' : 'sk-…'}">
+      <label for="aKey">${s.hasKey ? 'Yeni anahtar (değiştirmek için)' : 'API anahtarı'}
+        <input id="aKey" type="password" autocomplete="off" placeholder="sk-…">
       </label>
       <label for="aModel">Model
         <input id="aModel" list="models" value="${esc(s.model)}" autocomplete="off">
@@ -620,6 +713,11 @@ function renderAdmin(s){
       <button id="aTest" class="btn" ${s.hasKey ? '' : 'disabled'}>Anahtarı test et</button>
     </div>
     <div class="section">
+      <h3>Harita konumları</h3>
+      <p class="hint" style="margin:0 0 10px">${s.missingGeo ? s.missingGeo + ' kartın adresi var ama konumu yok.' : 'Adresi olan tüm kartların konumu var.'} Yeni kartların konumu kaydederken otomatik bulunur.</p>
+      <button id="aGeo" class="btn" ${s.missingGeo ? '' : 'disabled'}>Eksik konumları bul</button>
+    </div>
+    <div class="section">
       <h3>Veriler</h3>
       <div class="actions">
         <a class="btn" href="${esc(s.sheetUrl)}" target="_blank" rel="noopener">Veri tablosunu aç</a>
@@ -629,24 +727,32 @@ function renderAdmin(s){
     ${s.hasKey ? `<div class="section"><button id="aRemove" class="btn danger">Anahtarı sil</button></div>` : ''}`;
   $('#aSave').onclick = () => busy($('#aSave'), 'Kaydediliyor…', async () => {
     const ns = await api('saveSettings', { key: $('#aKey').value, model: $('#aModel').value });
-    S.hasKey = ns.hasKey; renderAdmin(ns); toast('Ayarlar kaydedildi.');
+    S.hasKey = ns.hasKey; $('#btnAdmin').classList.toggle('warn', !ns.hasKey); updateReadBtn(); renderAdmin(ns); toast('Ayarlar kaydedildi.');
+  });
+  $('#aGeo').onclick = () => busy($('#aGeo'), 'Konumlar bulunuyor…', async () => {
+    let total = 0, failed = 0, r;
+    do { r = await api('geocodeMissing'); total += r.done; failed = r.failed; } while (r.remaining > 0);
+    const d = await api('getInitialData'); S.cards = d.cards; renderList();
+    renderAdmin(await api('getSettings'));
+    toast(total + ' kartın konumu eklendi.' + (failed ? ' ' + failed + ' adres bulunamadı; adresi düzenleyip tekrar deneyin.' : ''));
   });
   $('#aTest').onclick = () => busy($('#aTest'), 'Test ediliyor…', async () => toast(await api('testKey')));
   if ($('#aRemove')) $('#aRemove').onclick = () => {
     if (!confirm('OpenAI anahtarı silinsin mi? Otomatik okuma kapanır.')) return;
-    busy($('#aRemove'), 'Siliniyor…', async () => { const ns = await api('saveSettings', { removeKey:true }); S.hasKey = false; renderAdmin(ns); toast('Anahtar silindi.'); });
+    busy($('#aRemove'), 'Siliniyor…', async () => { const ns = await api('saveSettings', { removeKey:true }); S.hasKey = false; $('#btnAdmin').classList.add('warn'); updateReadBtn(); renderAdmin(ns); toast('Anahtar silindi.'); });
   };
 }
-$('#btnAdmin').addEventListener('click', () => {
+function openAdmin(){
   $('#adminBody').className = 'loading'; $('#adminBody').textContent = 'Ayarlar yükleniyor…';
   openPanel('pAdmin');
   api('getSettings').then(renderAdmin).catch(e => { $('#adminBody').textContent = e.message; });
-});
+}
+$('#btnAdmin').addEventListener('click', openAdmin);
 
 /* ---------- başlat ---------- */
 api('getInitialData').then(d => {
   S.cards = d.cards; S.hasKey = d.hasKey; S.isAdmin = d.isAdmin;
-  $('#btnAdmin').hidden = !d.isAdmin;
+  if (!d.hasKey) $('#btnAdmin').classList.add('warn');
   $('#loadingList').hidden = true; renderList();
 }).catch(e => { $('#loadingList').textContent = 'Yüklenemedi: ' + e.message; });
 </script>
