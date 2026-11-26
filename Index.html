@@ -286,7 +286,10 @@ button,input,textarea{font:inherit;color:inherit}
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const IN_APPS_SCRIPT = typeof google !== 'undefined' && google.script && google.script.run;
+const NOT_APPS_SCRIPT_MSG = 'Sayfa Apps Script dışından açılmış (dosyadan, GitHub Pages veya önizlemeden). Uygulamayı Dağıt → Dağıtımları yönet ekranındaki …/exec ile biten web uygulaması linkinden açın.';
 const api = (fn, ...args) => new Promise((ok, no) => {
+  if (!IN_APPS_SCRIPT) { no(new Error(NOT_APPS_SCRIPT_MSG)); return; }
   google.script.run
     .withSuccessHandler(ok)
     .withFailureHandler(e => no(new Error((e && e.message) || String(e))))[fn](...args);
